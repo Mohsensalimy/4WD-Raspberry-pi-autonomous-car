@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Traffic_sign_Google_Search</folder>
+	<filename>traffics_road_signs.jpeg</filename>
+	<path>/Users/mohsensalimy/Desktop/2019:2020/Final year Project/image Labeling/Traffic_sign_Google_Search/traffics_road_signs.jpeg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>1000</width>
+		<height>1000</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>20</name>
+		<pose>Unspecified</pose>
+		<truncated>1</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>8</xmin>
+			<ymin>8</ymin>
+			<xmax>1000</xmax>
+			<ymax>992</ymax>
+		</bndbox>
+	</object>
+</annotation>

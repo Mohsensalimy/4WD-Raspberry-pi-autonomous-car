@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Traffic_sign_Google_Search</folder>
+	<filename>UK_50_mph_speed_limit_sign_.jpg</filename>
+	<path>/Users/mohsensalimy/Desktop/2019:2020/Final year Project/image Labeling/Traffic_sign_Google_Search/UK_50_mph_speed_limit_sign_.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>3390</width>
+		<height>2616</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>50</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>2149</xmin>
+			<ymin>303</ymin>
+			<xmax>2740</xmax>
+			<ymax>888</ymax>
+		</bndbox>
+	</object>
+</annotation>
