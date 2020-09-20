@@ -1,0 +1,26 @@
+<annotation>
+	<folder>Traffic_sign_Google_Search</folder>
+	<filename>Traffic-lights_signs.jpg</filename>
+	<path>/Users/mohsensalimy/Desktop/2019:2020/Final year Project/image Labeling/Traffic_sign_Google_Search/Traffic-lights_signs.jpg</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>590</width>
+		<height>350</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>Red traffic sign</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>235</xmin>
+			<ymin>40</ymin>
+			<xmax>315</xmax>
+			<ymax>122</ymax>
+		</bndbox>
+	</object>
+</annotation>
