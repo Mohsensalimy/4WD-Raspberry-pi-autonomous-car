@@ -1,0 +1,319 @@
+Section 1: Mount Google drive
+
+from google.colab import drive
+drive.mount('/content/gdrive')
+model_dir = '/content/gdrive/My Drive/Colab Notebooks/TransferLearning/Training'
+#!rm -rf '{model_dir}'
+#os.makedirs(model_dir, exist_ok=True)
+!ls -ltra '{model_dir}'/..
+
+
+Section 2: Configs and Hyperparameters
+
+# If you forked the repository, you can replace the link.
+repo_url = 'https://github.com/dctian/DeepPiCar'
+
+# Number of training steps.
+num_steps = 1000  # 200000
+#num_steps = 100  # 200000
+
+# Number of evaluation steps.
+num_eval_steps = 50
+
+
+# model configs are from Model Zoo github: 
+# https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md#coco-trained-models
+MODELS_CONFIG = {
+    #http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_quantized_300x300_coco14_sync_2018_07_18.tar.gz
+    'ssd_mobilenet_v1_quantized': {
+        'model_name': 'ssd_mobilenet_v1_quantized_300x300_coco14_sync_2018_07_18',
+        'pipeline_file': 'ssd_mobilenet_v1_quantized_300x300_coco14_sync.config',
+        'batch_size': 12
+    },    
+    'ssd_mobilenet_v2': {
+        'model_name': 'ssd_mobilenet_v2_coco_2018_03_29',
+        'pipeline_file': 'ssd_mobilenet_v2_coco.config',
+        'batch_size': 12
+    },
+    #http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz
+    'ssd_mobilenet_v2_quantized': {
+        'model_name': 'ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03',
+        'pipeline_file': 'ssd_mobilenet_v2_quantized_300x300_coco.config',
+        'batch_size': 12
+    },
+    'faster_rcnn_inception_v2': {
+        'model_name': 'faster_rcnn_inception_v2_coco_2018_01_28',
+        'pipeline_file': 'faster_rcnn_inception_v2_pets.config',
+        'batch_size': 12
+    },
+    'rfcn_resnet101': {
+        'model_name': 'rfcn_resnet101_coco_2018_01_28',
+        'pipeline_file': 'rfcn_resnet101_pets.config',
+        'batch_size': 12
+    }
+}
+
+# Pick the model you want to use
+# Select a model in `MODELS_CONFIG`.
+# Note: for Edge TPU, you have to:
+# 1) start with a pretrained model from model zoo, such as above 4
+# 2) Must be a quantized model, which reduces the model size significantly
+selected_model = 'ssd_mobilenet_v2_quantized'
+
+# Name of the object detection model to use.
+MODEL = MODELS_CONFIG[selected_model]['model_name']
+
+# Name of the pipline file in tensorflow object detection API.
+pipeline_file = MODELS_CONFIG[selected_model]['pipeline_file']
+
+# Training batch size fits in Colabe's Tesla K80 GPU memory for selected model.
+batch_size = MODELS_CONFIG[selected_model]['batch_size']
+
+
+Section 3: Set up Training Environment
+Clone the DeepPiCar repository or your fork.
+
+
+%cd /content
+
+repo_dir_path = os.path.abspath(os.path.join('.', os.path.basename(repo_url)))
+
+!git clone {repo_url}
+%cd {repo_dir_path}
+
+print('Pull it so that we have the latest code/data')
+
+
+Install required packages:
+%cd /content
+!git clone --quiet https://github.com/tensorflow/models.git
+
+!apt-get install -qq protobuf-compiler python-pil python-lxml python-tk
+
+!pip install -q Cython contextlib2 pillow lxml matplotlib
+
+!pip install -q pycocotools
+
+%cd /content/models/research
+!protoc object_detection/protos/*.proto --python_out=.
+
+import os
+os.environ['PYTHONPATH'] += ':/content/models/research/:/content/models/research/slim/'
+
+!python object_detection/builders/model_builder_test.py
+
+
+Prepare tfrecord files
+
+%cd {repo_dir_path}/models/object_detection
+
+# Convert train folder annotation xml files to a single csv file,
+# generate the `label_map.pbtxt` file to `data/` directory as well.
+!python code/xml_to_csv.py -i data/images/train -o data/annotations/train_labels.csv -l data/annotations
+
+# Convert test folder annotation xml files to a single csv.
+!python code/xml_to_csv.py -i data/images/test -o data/annotations/test_labels.csv
+
+# Generate `train.record`
+!python code/generate_tfrecord.py --csv_input=data/annotations/train_labels.csv --output_path=data/annotations/train.record --img_path=data/images/train --label_map data/annotations/label_map.pbtxt
+
+# Generate `test.record`
+!python code/generate_tfrecord.py --csv_input=data/annotations/test_labels.csv --output_path=data/annotations/test.record --img_path=data/images/test --label_map data/annotations/label_map.pbtxt
+
+
+!git pull
+
+test_record_fname = repo_dir_path + '/models/object_detection/data/annotations/test.record'
+train_record_fname = repo_dir_path + '/models/object_detection/data/annotations/train.record'
+label_map_pbtxt_fname = repo_dir_path + '/models/object_detection/data/annotations/label_map.pbtxt'
+!cat data/annotations/test_labels.csv
+
+
+%cd /content/models/research
+
+import os
+import shutil
+import glob
+import urllib.request
+import tarfile
+MODEL_FILE = MODEL + '.tar.gz'
+DOWNLOAD_BASE = 'http://download.tensorflow.org/models/object_detection/'
+DEST_DIR = '/content/models/research/pretrained_model'
+
+if not (os.path.exists(MODEL_FILE)):
+    urllib.request.urlretrieve(DOWNLOAD_BASE + MODEL_FILE, MODEL_FILE)
+
+tar = tarfile.open(MODEL_FILE)
+tar.extractall()
+tar.close()
+
+os.remove(MODEL_FILE)
+if (os.path.exists(DEST_DIR)):
+    shutil.rmtree(DEST_DIR)
+os.rename(MODEL, DEST_DIR)
+
+
+Download base model
+
+
+import os
+import shutil
+import glob
+import urllib.request
+import tarfile
+MODEL_FILE = MODEL + '.tar.gz'
+DOWNLOAD_BASE = 'http://download.tensorflow.org/models/object_detection/'
+DEST_DIR = '/content/models/research/pretrained_model'
+
+if not (os.path.exists(MODEL_FILE)):
+    urllib.request.urlretrieve(DOWNLOAD_BASE + MODEL_FILE, MODEL_FILE)
+
+tar = tarfile.open(MODEL_FILE)
+tar.extractall()
+tar.close()
+
+os.remove(MODEL_FILE)
+if (os.path.exists(DEST_DIR)):
+    shutil.rmtree(DEST_DIR)
+os.rename(MODEL, DEST_DIR)
+
+
+!echo {DEST_DIR}
+!ls -alh {DEST_DIR}
+
+
+fine_tune_checkpoint = os.path.join(DEST_DIR, "model.ckpt")
+fine_tune_checkpoint
+
+
+
+Section 4: Transfer Learning Training¶
+
+Configuring a Training Pipeline
+
+
+
+import os
+pipeline_fname = os.path.join('/content/models/research/object_detection/samples/configs/', pipeline_file)
+
+assert os.path.isfile(pipeline_fname), '`{}` not exist'.format(pipeline_fname)
+
+def get_num_classes(pbtxt_fname):
+    from object_detection.utils import label_map_util
+    label_map = label_map_util.load_labelmap(pbtxt_fname)
+    categories = label_map_util.convert_label_map_to_categories(
+        label_map, max_num_classes=90, use_display_name=True)
+    category_index = label_map_util.create_category_index(categories)
+    return len(category_index.keys())
+
+import re
+
+# training pipeline file defines:
+# - pretrain model path
+# - the train/test sets
+# - ID to Label mapping and number of classes
+# - training batch size
+# - epochs to trains
+# - learning rate
+# - etc
+
+# note we just need to use a sample one, and make edits to it.
+
+num_classes = get_num_classes(label_map_pbtxt_fname)
+with open(pipeline_fname) as f:
+    s = f.read()
+with open(pipeline_fname, 'w') as f:
+    
+    # fine_tune_checkpoint: downloaded pre-trained model checkpoint path
+    s = re.sub('fine_tune_checkpoint: ".*?"',
+               'fine_tune_checkpoint: "{}"'.format(fine_tune_checkpoint), s)
+    
+    # tfrecord files train and test, we created earlier with our training/test sets
+    s = re.sub(
+        '(input_path: ".*?)(train.record)(.*?")', 'input_path: "{}"'.format(train_record_fname), s)
+    s = re.sub(
+        '(input_path: ".*?)(val.record)(.*?")', 'input_path: "{}"'.format(test_record_fname), s)
+
+    # label_map_path: ID to label file
+    s = re.sub(
+        'label_map_path: ".*?"', 'label_map_path: "{}"'.format(label_map_pbtxt_fname), s)
+
+    # Set training batch_size.
+    s = re.sub('batch_size: [0-9]+',
+               'batch_size: {}'.format(batch_size), s)
+
+    # Set training steps, num_steps (Number of epochs to train)
+    s = re.sub('num_steps: [0-9]+',
+               'num_steps: {}'.format(num_steps), s)
+    
+    # Set number of classes num_classes.
+    s = re.sub('num_classes: [0-9]+',
+               'num_classes: {}'.format(num_classes), s)
+    f.write(s)
+
+!cat {label_map_pbtxt_fname}
+
+# look for num_classes: 6, since we have 5 different road signs and 1 person type (total of 6 types) 
+!cat {pipeline_fname}
+
+!wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+!unzip -o ngrok-stable-linux-amd64.zip
+
+LOG_DIR = model_dir
+get_ipython().system_raw(
+    'tensorboard --logdir "{}" --host 0.0.0.0 --port 6006 &'
+    .format(LOG_DIR)
+)
+
+get_ipython().system_raw('./ngrok http 6006 &')
+
+
+Train the model¶
+
+#################### SEND ALERT EMAIL AT FINISH WITH GMAIL #####################
+# To send email from Python from your google account, MUST 
+# 1) Enable less secure app
+# https://myaccount.google.com/lesssecureapps
+# 2) Disable Unlock Capcha
+# https://accounts.google.com/b/0/DisplayUnlockCaptcha
+
+import smtplib
+
+def SendEmail(msg):
+    with open('/content/gdrive/My Drive/Colab Notebooks/pw.txt') as file:
+        data = file.readlines()
+        
+    gmail_user = 'david.tian@gmail.com'  
+    gmail_password = data[0]
+
+
+    sent_from = gmail_user  
+    to = ['dctian@hotmail.com']  
+    subject = msg  
+    body = '%s\n\n- David' % msg
+
+    email_text = \
+"""From: %s
+To: %s
+Subject: %s
+
+%s
+""" % (sent_from, ", ".join(to), subject, body)
+
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.ehlo()
+    server.starttls()
+    server.login(gmail_user, gmail_password)
+    server.sendmail(sent_from, to, email_text)
+    server.quit()
+
+    print(f'Email: \n{email_text}')
+    
+    SendEmail("Colab train started")
+!python /content/models/research/object_detection/model_main.py \
+    --pipeline_config_path={pipeline_fname} \
+    --model_dir='{model_dir}' \
+    --alsologtostderr \
+    --num_train_steps={num_steps} \
+    --num_eval_steps={num_eval_steps}
+SendEmail("Colab train finished")
